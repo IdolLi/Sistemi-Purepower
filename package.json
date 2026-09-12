@@ -1,0 +1,36 @@
+{
+  "name": "sistemi-purepower-tooling",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Automotive filter tooling, housing & warehouse management system (Sistemi Purepower)",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "db:migrate": "node server/db/cli.js migrate",
+    "db:seed": "node server/db/cli.js seed",
+    "db:reset": "node server/db/cli.js reset",
+    "db:perf": "node server/db/cli.js perf",
+    "setup": "node server/db/cli.js migrate && node server/db/cli.js seed",
+    "test": "node tests/route-audit.js && node tests/run.js",
+    "test:api": "node tests/run.js",
+    "test:routes": "node tests/route-audit.js"
+  },
+  "dependencies": {
+    "@zxing/library": "^0.21.3",
+    "bcryptjs": "^3.0.2",
+    "bwip-js": "^4.11.4",
+    "cookie-parser": "^1.4.7",
+    "exceljs": "^4.4.0",
+    "express": "^4.21.2",
+    "jsqr": "^1.4.0",
+    "lite4mariadb": "^0.1.2",
+    "multer": "^2.0.1",
+    "mysql2": "^3.11.5",
+    "pdfkit": "^0.15.2",
+    "qrcode": "^1.5.4"
+  }
+}
