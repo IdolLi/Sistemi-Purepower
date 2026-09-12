@@ -1,0 +1,25 @@
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# runtime data (uploaded files, embedded database, backups, generated exports)
+.data/
+server/.data/
+backups/
+tmp/
+
+# env / secrets
+.env
+.env.local
+*.pem
+*.key
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+coverage/
+logs/
+*.log
