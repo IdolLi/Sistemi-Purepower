@@ -446,25 +446,45 @@ export async function getLayout(warehouseRef) {
 }
 
 /** Save grid settings and/or a batch of placements. Returns counts. */
-export async function upsertLayout(warehouseRef, { grid_cols, grid_rows, cell_size_px, background_document_id, clear_background, note, items = [] } = {}) {
+export async function upsertLayout(warehouseRef, { grid_cols, grid_rows, cell_size_px, background_document_id, clear_background, note, items } = {}) {
   const wh = await resolveWarehouse(warehouseRef);
   const exec = await db.rawDriver.executor();
-  await exec.run(
-    `INSERT INTO warehouse_layouts (warehouse_id, grid_cols, grid_rows, cell_size_px, background_document_id, note)
-     VALUES (?,?,?,?,?,?)
-     ON DUPLICATE KEY UPDATE
-       grid_cols = COALESCE(VALUES(grid_cols), grid_cols),
-       grid_rows = COALESCE(VALUES(grid_rows), grid_rows),
-       cell_size_px = COALESCE(VALUES(cell_size_px), cell_size_px),
-       background_document_id = COALESCE(VALUES(background_document_id), background_document_id),
-       note = COALESCE(VALUES(note), note),
-       updated_at = NOW()`,
-    [wh.id, grid_cols ?? null, grid_rows ?? null, cell_size_px ?? null, clear_background ? null : background_document_id ?? null, note ?? null],
-  );
-  if (clear_background) await exec.run('UPDATE warehouse_layouts SET background_document_id = NULL WHERE warehouse_id = ?', [wh.id]);
+  // The layout row may not exist yet: create it with the schema defaults, then touch only the
+  // fields the caller actually sent, so a settings-only save cannot blank the grid.
+  await exec.run('INSERT IGNORE INTO warehouse_layouts (warehouse_id) VALUES (?)', [wh.id]);
+  const sets = [];
+  const params = [];
+  const clampInt = (v, min, max) => {
+    // The validator writes null for "field absent" - Number(null) is 0, which would silently
+    // clamp a missing grid size to its minimum, so absence has to be tested before coercion.
+    if (v === null || v === undefined || v === '') return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.max(min, Math.min(max, Math.round(n))) : null;
+  };
+  for (const [col, value] of [
+    ['grid_cols', clampInt(grid_cols, 1, 100)],
+    ['grid_rows', clampInt(grid_rows, 1, 100)],
+    ['cell_size_px', clampInt(cell_size_px, 20, 200)],
+  ]) {
+    if (value !== null) {
+      sets.push(`${col} = ?`);
+      params.push(value);
+    }
+  }
+  if (note !== undefined && note !== null) {
+    sets.push('note = ?');
+    params.push(note);
+  }
+  if (clear_background) sets.push('background_document_id = NULL');
+  else if (background_document_id !== undefined && background_document_id !== null) {
+    sets.push('background_document_id = ?');
+    params.push(background_document_id);
+  }
+  if (sets.length) await exec.run(`UPDATE warehouse_layouts SET ${sets.join(', ')}, updated_at = NOW() WHERE warehouse_id = ?`, [...params, wh.id]);
+
   let updated = 0;
   let skipped = 0;
-  for (const it of items) {
+  for (const it of items ?? []) {
     if (!it.id) {
       skipped += 1;
       continue;
@@ -483,7 +503,8 @@ export async function upsertLayout(warehouseRef, { grid_cols, grid_rows, cell_si
     ]);
     updated += 1;
   }
-  return { warehouse_id: wh.id, updated, skipped, grid_cols: grid_cols ?? null };
+  const stored = await exec.one('SELECT grid_cols, grid_rows, cell_size_px, background_document_id, note FROM warehouse_layouts WHERE warehouse_id = ?', [wh.id]);
+  return { warehouse_id: wh.id, updated, skipped, ...stored };
 }
 
 async function resolveWarehouse(ref) {

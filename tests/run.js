@@ -376,6 +376,26 @@ async function main() {
     const r = await post('/api/warehouse/locations', { kind: 'SHELF', parent_location_id: racks.json.items[0].id, code: 'S90', label: 'dupe' }, 'admin');
     eq(r.status, 409, 'duplicate refused');
     ok('duplicate location');
+  await test('the storage map keeps placed cells when only settings change', async () => {
+    const shelf = await get(`/api/warehouse/locations/${shelfId}`, 'admin');
+    const whId = shelf.json.location.warehouse_id;
+    assert(whId, 'the shelf belongs to a warehouse');
+    const saved = await put(`/api/warehouse/warehouses/${whId}/layout`, { grid_cols: 22, grid_rows: 11, cell_size_px: 44, items: [{ location_id: shelfId, x: 4, y: 2, w: 2, color: '#1d4ed8' }] }, 'admin');
+    eq(saved.status, 200, `layout save: ${saved.text?.slice(0, 240)}`);
+    eq(saved.json.grid_cols, 22, 'grid width stored');
+    const noteOnly = await put(`/api/warehouse/warehouses/${whId}/layout`, { note: 'aisle repainted' }, 'admin');
+    eq(noteOnly.status, 200, 'a settings-only save is accepted');
+    eq(noteOnly.json.grid_cols, 22, 'a partial save must not reset the grid');
+    const map = await get(`/api/warehouse/warehouses/${whId}/layout`, 'admin');
+    eq(map.status, 200, 'map read');
+    const cell = (map.json.cells ?? []).find((c) => Number(c.location_id) === Number(shelfId));
+    assert(cell, 'the test shelf is on the map');
+    eq(Number(cell.map_col), 4, 'column kept');
+    eq(Number(cell.map_row), 2, 'row kept');
+    const badShape = await put(`/api/warehouse/warehouses/${whId}/layout`, { items: 5 }, 'admin');
+    eq(badShape.status, 400, 'a non-array cell list is a validation error, not a 500');
+    ok('storage map');
+  });
   });
 
   group = 'movements';

@@ -2,7 +2,7 @@
 import express from 'express';
 import db from '../db/index.js';
 import { asyncRoute, badRequest, notFound, conflict } from '../lib/errors.js';
-import { validate, str, num, bool, oneOf, text, idRef } from '../lib/validate.js';
+import { validate, str, num, bool, oneOf, text, idRef, object } from '../lib/validate.js';
 import { requirePermission } from '../middleware/index.js';
 import {
   MAINT_TYPES,
@@ -383,7 +383,7 @@ router.post('/requests/:id/create-tooling', requirePermission('tooling.create'),
       location: [str, { max: 200 }],
       max_cycles: [num, { int: true, min: 1 }],
       notes: [text, { max: 4000 }],
-      dimensions: [(v) => ({ ok: !v || typeof v === 'object', message: 'dimensions must be an object', value: v ?? null })],
+      dimensions: [object, {}],
     },
     req.body,
   );

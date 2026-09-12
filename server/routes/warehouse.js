@@ -462,6 +462,29 @@ router.get('/warehouses/:id/layout', requirePermission('*.read'), asyncRoute(asy
   res.json(await getLayout(req.params.id));
 }));
 
+/**
+ * Storage-map cell list. The validator contract is (value, field, out, errors): a field the caller
+ * omitted is left as null so a settings-only save cannot move or clear the placed cells, and a
+ * submitted list is applied additively - cells that are not mentioned keep their position.
+ */
+function layoutItems(value, field, out, errors) {
+  if (value === undefined || value === null) {
+    out[field] = null;
+    return;
+  }
+  if (!Array.isArray(value)) {
+    errors.push(`${field} must be an array of { location_id, x, y, w, color }`);
+    return;
+  }
+  out[field] = value.slice(0, 4000).map((it) => ({
+    id: Number(it?.location_id ?? it?.id ?? 0),
+    x: Number(it?.x ?? 0),
+    y: Number(it?.y ?? 0),
+    w: Number(it?.w ?? 1),
+    color: typeof it?.color === 'string' ? it.color.slice(0, 20) : null,
+  }));
+}
+
 router.put('/warehouses/:id/layout', requirePermission('locations.manage'), asyncRoute(async (req, res) => {
   const data = validate(
     {
@@ -471,20 +494,7 @@ router.put('/warehouses/:id/layout', requirePermission('locations.manage'), asyn
       grid_rows: [num, { int: true, min: 1, max: 100 }],
       cell_size_px: [num, { int: true, min: 20, max: 200 }],
       note: [str, { max: 500 }],
-      items: [
-        (v) => ({
-          ok: Array.isArray(v),
-          message: 'items must be an array of { location_id, x, y, w, color }',
-          value: v.slice(0, 4000).map((it) => ({
-            id: Number(it.location_id ?? it.id),
-            x: Number(it.x ?? 0),
-            y: Number(it.y ?? 0),
-            w: Number(it.w ?? 1),
-            color: typeof it.color === 'string' ? it.color.slice(0, 20) : null,
-          })),
-        }),
-        {},
-      ],
+      items: layoutItems,
     },
     req.body,
   );

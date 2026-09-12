@@ -366,11 +366,12 @@ router.post('/sets/list', requirePermission('tooling_sets.manage'), asyncRoute(a
 router.get('/sets/list/:id', requirePermission('*.read'), asyncRoute(async (req, res) => {
   const id = requireId(req.params.id, 'set id');
   const set = await db.one(
-    `SELECT s.*, f.id AS filter_pk, f.internal_number AS filter_number, f.name AS filter_name, ft.name AS filter_type, fd.*
+    `SELECT s.*, f.id AS filter_pk, f.internal_number AS filter_number, f.name AS filter_name, ft.name AS filter_type,
+            fd.length_mm, fd.width_mm, fd.height_mm, fd.outer_diameter_mm
      FROM tooling_sets s
      LEFT JOIN filters f ON f.id = s.filter_id
      LEFT JOIN filter_types ft ON ft.id = f.filter_type_id
-     LEFT JOIN filter_dimensions fd ON fd.filter_id = f.filter_id
+     LEFT JOIN filter_dimensions fd ON fd.filter_id = f.id
      WHERE s.id = ?`,
     [id],
   );
@@ -393,7 +394,13 @@ router.get('/sets/list/:id', requirePermission('*.read'), asyncRoute(async (req,
         [set.filter_pk],
       )
     : [];
-  res.json({ set: { ...set, items: items.length }, items, requirements });
+  const dimensions = {
+    length_mm: set.length_mm ?? null,
+    width_mm: set.width_mm ?? null,
+    height_mm: set.height_mm ?? null,
+    outer_diameter_mm: set.outer_diameter_mm ?? null,
+  };
+  res.json({ set: { ...set, item_count: items.length, items: items.length, dimensions }, items, requirements });
 }));
 
 router.put('/sets/list/:id', requirePermission('tooling_sets.manage'), asyncRoute(async (req, res) => {
